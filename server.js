@@ -11,6 +11,9 @@ const cookieParser = require('cookie-parser')
 const session = require('express-session')
 const connectMongo = require ('connect-mongo')
 const advanceOptions = {useNewUrlParser: true, useUnifiedTopology: true}
+const passport = require('passport')
+const LocalStrategy = require('passport-local').Strategy
+const bcrypt = require("bcrypt");
 
 app.use(express.static('./public'))
 
@@ -39,14 +42,15 @@ const { INSPECT_MAX_BYTES } = require('buffer')
 const { timeStamp } = require('console')
 
 app.engine(
-    'hbs',
-    handlebars({
+    '.hbs',
+    handlebars.engine({
               extname: '.hbs',
-              defaultLayout: 'index.hbs'
+              defaultLayout: 'index.hbs',
+              layoutsDir: './views/layouts'
     })
   )
   
-app.set('view engine', 'hbs')
+app.set('view engine', '.hbs')
 app.set('views', './views')
 
 //---------------------------------SOCKETS-----------------------//
@@ -132,6 +136,7 @@ async function getAll (){
 }
 
 //--------------------------LOGIN--CON---SESSION ---------------------------//
+app.use(cookieParser())
 
 //----METODO DE SAVE SESSION a nivel de la aplicacion y TIEMPO (ttl)/ cookie maxAge
 app.use(
@@ -151,7 +156,7 @@ app.use(
 
 //----METODO DE LOGIN -------------------------
 
-app.use(cookieParser())
+
 
 app.post('/login'
                 ,async (req, res) => {
