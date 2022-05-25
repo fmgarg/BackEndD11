@@ -162,7 +162,7 @@ productosRouter.get ('/'
             fakeApi = ()=> products
             //console.log(req.session.cookie.maxAge)
             if(req.session.cookie.maxAge>=1){
-                res.render('datos', {suggestedChamps: fakeApi(), listExists: true})
+                res.render('home', {suggestedChamps: fakeApi(), listExists: true})
             }else{
                 res.redirect('/login')
             }

@@ -45,7 +45,7 @@ app.engine(
     '.hbs',
     handlebars.engine({
               extname: '.hbs',
-              defaultLayout: 'index.hbs',
+              defaultLayout: 'main.hbs',
               layoutsDir: './views/layouts'
     })
   )
@@ -135,31 +135,101 @@ async function getAll (){
 
 }
 
-//--------------------------LOGIN--CON---SESSION ---------------------------//
+//--------------------------LOGIN--CON---SESSION y PASSPORT---------------------------//
 app.use(cookieParser())
 
 //----METODO DE SAVE SESSION a nivel de la aplicacion y TIEMPO (ttl)/ cookie maxAge
 app.use(
   session({
-    store: connectMongo.create ({
+    /*store: connectMongo.create ({
           mongoUrl: 'mongodb+srv://ex888gof:2013facu@cluster0.mnmsh.mongodb.net/myFirstDatabase?retryWrites=true&w=majority'
           ,ttl: 600
           ,autoRemove: 'disabled'
           ,mongoOptions: advanceOptions
-    })
-    ,secret: 'secreto'
+    })*/
+    secret: 'secreto'
     ,resave: true
     ,saveUninitialized: true
     ,cookie: { maxAge: 600000 }
   })
 )
 
-//----METODO DE LOGIN -------------------------
+//----PASSPORT---------------------------------
 
+const usuarios = [
+  { nombre: 'Hector', password: 'asd' },
+  { nombre: 'mario', password: 'asd1' },
+  { nombre: 'Marta', password: 'asd2' },
+]
 
+app.use(passport.initialize())
+app.use(passport.session())
+
+passport.use(
+            'register',
+            new LocalStrategy(
+                      { passReqToCallback: true },
+                      (req, username, password, done) => {
+                            console.log('entro signup')
+                            const existe = usuarios.find((usuario) => {
+                              return usuario.nombre == username
+                            })
+                            if (existe) {
+                              return done(null, false)
+                            } else {
+                              usuarios.push({ nombre: username, password: password })
+                              console.log(usuarios)
+                              done(null, { nombre: username })
+                            }
+                      }
+            )
+)
+passport.use(
+            'login'
+            ,new LocalStrategy((username, password, done) => {
+              console.log('entro')
+              const existe = usuarios.find((usuario) => {
+                return usuario.nombre == username && usuario.password == password
+              })
+              console.log(existe)
+              if (!existe) {
+                return done(null, false)
+              } else {
+                //console.log(existe)
+                return done(null, existe)
+              }
+              //if (username == 'hector') return done(null, { id: 1, name: 'Hector' })
+            })
+)
+
+passport.serializeUser((usuario, done) => {
+  console.log(usuario.nombre + 'serializado')
+  done(null, usuario.nombre)
+})
+
+passport.deserializeUser((nombre, done) => {
+  const usuarioDz = usuarios.find((usuario) => usuario.nombre == nombre)
+  console.log(JSON.stringify(usuarioDz) + 'desserializado')
+  done(null, usuarioDz)
+})
+
+//---------------RUTAS -------------------------
+app.get('/login', (req, res, next) => {
+  req.logOut(function(err){
+    if (err) {return next (err);}
+    res.render('login')
+  })
+  res.render('login')
+})
 
 app.post('/login'
-                ,async (req, res) => {
+                ,passport.authenticate('login', {
+                  
+                  successRedirect: '/home',
+                  failureRedirect: '/login-error',
+                  
+                })
+                /*,async (req, res) => {
                   const {user} = req.body
                   if (!user) {
                       return res.redirect('/')
@@ -169,13 +239,33 @@ app.post('/login'
                       userLogin['user']= user
                       userAdmin.push(userLogin)
                       res.redirect('/home')
-                }
+                }*/
+)
+
+app.get('/register', (req, res) => {
+  res.render('register')
+})
+
+app.post(
+  '/register',
+  passport.authenticate('register', {
+    successRedirect: '/login',
+    failureRedirect: '/login-error',
+  })
 )
 
 app.use('/home'
               ,function (req, res, next) {
-                if (!req.session.user){
-                    res.redirect('/')
+                console.log(req.session.passport['user'])
+                user = req.session.passport['user']
+                console.log(user)
+                
+                const userLogin = {user:{}}
+                userLogin['user']= user
+                userAdmin.push(userLogin)
+                if (!req.session.passport['user']){
+                  //console.log('aca paso algo')  
+                  res.redirect('/login')
                 } else {
                     next ()
                   }
@@ -184,14 +274,21 @@ app.use('/home'
 )
 
 //----METODO LOGOUT que destruye la sesion--------
-app.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
+app.get('/logout', (req, res, next) => {
+
+    console.log(req.sesssion)
+    req.logOut(function(err){
+      if (err) {return next (err);}
+      res.redirect('/login')
+    })
+
+    /*req.session.destroy((err) => {
     if (!err) {
               res.redirect('logout.html')
     }else{ 
               res.send({ status: 'logout Error', error: err })
     }
-  })
+    })*/
 })
 
 //-----METODO para ver las cookies-----------------
