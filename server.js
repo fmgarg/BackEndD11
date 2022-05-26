@@ -104,6 +104,7 @@ io.on('connection', (socket) => {
 
 const {optionsMSG} = require ('./optionsMSG/sqLite3') 
 const { MemoryStore } = require('express-session')
+const { isNullOrUndefined } = require('util')
 const knexMSG = require ('knex') (optionsMSG);
 
 //----------------esta funcion crea la tabla de mensajes sqLite3------------------
@@ -219,7 +220,7 @@ app.get('/login', (req, res, next) => {
     if (err) {return next (err);}
     res.render('login')
   })
-  res.render('login')
+  //res.render('login')
 })
 
 app.post('/login'
@@ -246,6 +247,10 @@ app.get('/register', (req, res) => {
   res.render('register')
 })
 
+app.get('/login-error', (req, res)=>{
+  res.render('login-error')
+}
+)
 app.post(
   '/register',
   passport.authenticate('register', {
@@ -256,19 +261,24 @@ app.post(
 
 app.use('/home'
               ,function (req, res, next) {
-                console.log(req.session.passport['user'])
-                user = req.session.passport['user']
-                console.log(user)
                 
-                const userLogin = {user:{}}
-                userLogin['user']= user
-                userAdmin.push(userLogin)
-                if (!req.session.passport['user']){
-                  //console.log('aca paso algo')  
+                if (req.session.passport==undefined)
+                {
+                  
                   res.redirect('/login')
+                
                 } else {
-                    next ()
-                  }
+                
+                  console.log(req.session.passport['user'])
+                  user = req.session.passport['user']
+                  console.log(user)
+                    
+                  const userLogin = {user:{}}
+                  userLogin['user']= user
+                  userAdmin.push(userLogin)
+                  next ()
+                
+                }
               }
               ,productosRouter
 )
@@ -276,7 +286,6 @@ app.use('/home'
 //----METODO LOGOUT que destruye la sesion--------
 app.get('/logout', (req, res, next) => {
 
-    console.log(req.sesssion)
     req.logOut(function(err){
       if (err) {return next (err);}
       res.redirect('/login')
