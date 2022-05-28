@@ -13,11 +13,55 @@ const connectMongo = require ('connect-mongo')
 const advanceOptions = {useNewUrlParser: true, useUnifiedTopology: true}
 const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcrypt-nodejs");
+const flash = require('connect-flash')
 
 app.use(express.static('./public'))
 
 httpServer.listen(8080, () =>{ getAll(); console.log('servidor levantado puerto: 8080')})
+
+//-------BDD-ECOMMERCE--MONGO--ATLAS------------------
+
+const mongoose = require ('mongoose')
+
+const User = require ('./modelUsers')
+
+CRUD()
+
+async function CRUD() {
+ try{ 
+      const DB = 'ecommerce'
+      const URL = `mongodb+srv://ex888gof:2013facu@cluster0.mnmsh.mongodb.net/${DB}?retryWrites=true&w=majority`
+      
+      let respueta = await mongoose.connect (
+              URL
+              ,{
+                useNewUrlParser: true
+               ,useUnifiedTopology: true
+              })
+              console.log('Base de datos conectada')
+              /*,await User.create({
+                                username: 'FMG@gmail.com',
+                                password: '123456',
+                                nombre: 'Francisco',
+                                apellido: 'Gonzalez',
+                                dni: '28888888',
+                                calle: 'Las rosas',
+                                altura: '3333',
+                                pisoDpto:'-',
+                                localidad: 'Las flores',
+                                cp:'1000',
+                                provincia: 'Aca',
+                                telefono: '1140003000'
+              })*/
+              //,console.log( await User.find())
+              //,console.log( modelUsers.estimatedDocumentCount())
+  } catch (e) {
+    console.log(e)
+  }
+ }
+
+//-----------FIN BDD MONGOOSE-----------------
 
 /*
 //metodo para enviar y recibir peticiones json
@@ -105,6 +149,8 @@ io.on('connection', (socket) => {
 const {optionsMSG} = require ('./optionsMSG/sqLite3') 
 const { MemoryStore } = require('express-session')
 const { isNullOrUndefined } = require('util')
+const { CONNREFUSED } = require('dns')
+//const { createHash } = require('crypto')
 const knexMSG = require ('knex') (optionsMSG);
 
 //----------------esta funcion crea la tabla de mensajes sqLite3------------------
@@ -143,7 +189,7 @@ app.use(cookieParser())
 app.use(
   session({
     /*store: connectMongo.create ({
-          mongoUrl: 'mongodb+srv://ex888gof:2013facu@cluster0.mnmsh.mongodb.net/myFirstDatabase?retryWrites=true&w=majority'
+          mongoUrl: 'mongodb+srv://ex888gof:2013facu@cluster0.mnmsh.mongodb.net/ecommerce?retryWrites=true&w=majority'
           ,ttl: 600
           ,autoRemove: 'disabled'
           ,mongoOptions: advanceOptions
@@ -157,61 +203,94 @@ app.use(
 
 //----PASSPORT---------------------------------
 
-const usuarios = [
+/*const usuarios = [
   { nombre: 'Hector', password: 'asd' },
   { nombre: 'mario', password: 'asd1' },
   { nombre: 'Marta', password: 'asd2' },
-]
+]*/
+
+app.use(flash())
 
 app.use(passport.initialize())
 app.use(passport.session())
 
-passport.use(
-            'register',
-            new LocalStrategy(
-                      { passReqToCallback: true },
-                      (req, username, password, done) => {
-                            console.log('entro signup')
-                            const existe = usuarios.find((usuario) => {
-                              return usuario.nombre == username
-                            })
-                            if (existe) {
-                              return done(null, false)
-                            } else {
-                              usuarios.push({ nombre: username, password: password })
-                              console.log(usuarios)
-                              done(null, { nombre: username })
+passport.use('login'
+             ,new LocalStrategy({
+              usernameField: 'username',
+              passwordField: 'password',
+              passReqToCallback: true
+              },
+                    async  (req, username, password, done) => {
+                            console.log('entro a signin/ login')
+
+                            const userExist = await User.findOne({username: username})
+
+                            if(!userExist){
+                              return done(null, false, req.flash('signinMessage', 'No se ubica el Usuario'))
                             }
-                      }
-            )
-)
-passport.use(
-            'login'
-            ,new LocalStrategy((username, password, done) => {
-              console.log('entro')
-              const existe = usuarios.find((usuario) => {
-                return usuario.nombre == username && usuario.password == password
-              })
-              console.log(existe)
-              if (!existe) {
-                return done(null, false)
-              } else {
-                //console.log(existe)
-                return done(null, existe)
-              }
-              //if (username == 'hector') return done(null, { id: 1, name: 'Hector' })
-            })
+                            if(!userExist.comparePassword(password)){
+                              return done(null, false, req.flash('signinMessage', 'Password incorrecta'))
+                            }
+                            done(null, userExist)
+                    }
+             )
+
 )
 
-passport.serializeUser((usuario, done) => {
-  console.log(usuario.nombre + 'serializado')
-  done(null, usuario.nombre)
+passport.use('register',  new LocalStrategy({ //---FALTA EL MANEJO DE ERRORES Y DUPLICADOS!!!----//
+    usernameField: 'username',
+    passwordField: 'password',
+    passReqToCallback: true
+   },
+          async  (req, username, password, done) => {
+                  console.log('entro a signup/ register')
+
+                  const userExist = await User.findOne({username: username})
+
+                  if(userExist){
+                    return done(null, false, req.flash('signupMessage', 'El usuario ya existe')) //01:31 agregar ruta que captura msgs con var global y luego if al login.hbs
+                  }else{
+
+                  const newUser = new User ()
+                  newUser.username= username,
+                  newUser.password= encryptPassword(password),
+                  newUser.nombre= req.body.nombre,
+                  newUser.apellido= req.body.apellido,
+                  newUser.dni= req.body.dni,
+                  newUser.calle= req.body.calle,
+                  newUser.altura= req.body.altura,
+                  newUser.pisoDpto= req.body.pisoDpto,
+                  newUser.localidad= req.body.localidad,
+                  newUser.cp= req.body.cp,
+                  newUser.provincia= req.body.provincia,
+                  newUser.telefono= req.body.telefono
+
+                  await newUser.save()
+                  done(null, newUser)
+                  }
+          }
+)
+)
+
+/*function encryptPassword (password) {
+  return bcrypt.hashSync(password, bcrypt.genSaltSync(10),null);
+}*/
+
+/*function createHash(password) {
+  return bcrypt.hashSync(
+                password,
+                bcrypt.genSaltSync(10),
+                null
+  );
+}*/
+
+passport.serializeUser((user, done) => {
+  done(null, user.id)
 })
 
-passport.deserializeUser((nombre, done) => {
-  const usuarioDz = usuarios.find((usuario) => usuario.nombre == nombre)
-  console.log(JSON.stringify(usuarioDz) + 'desserializado')
-  done(null, usuarioDz)
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById (id)
+  done(null, user)
 })
 
 //---------------RUTAS -------------------------
@@ -256,11 +335,12 @@ app.post(
   passport.authenticate('register', {
     successRedirect: '/login',
     failureRedirect: '/login-error',
+    passReqToCallback: true
   })
 )
 
 app.use('/home'
-              ,function (req, res, next) {
+              ,async function (req, res, next) {
                 
                 if (req.session.passport==undefined)
                 {
@@ -268,13 +348,16 @@ app.use('/home'
                   res.redirect('/login')
                 
                 } else {
-                
-                  console.log(req.session.passport['user'])
-                  user = req.session.passport['user']
+                  
+
+                  const id = req.session.passport['user']
+                  //console.log(id)
+                  const user = await User.findById (id)
+                  
                   console.log(user)
                     
                   const userLogin = {user:{}}
-                  userLogin['user']= user
+                  userLogin['user']= user.nombre
                   userAdmin.push(userLogin)
                   next ()
                 
